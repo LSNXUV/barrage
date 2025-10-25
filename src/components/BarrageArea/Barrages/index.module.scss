@@ -1,0 +1,11 @@
+.barrageContainer {
+    width: 100%;
+    height: 60%;
+    min-height: 24px * 15;
+    border: 1px solid #4e4e4e;
+    position: relative;
+
+    /* 保持层叠上下文隔离，但不强制创建合成层 */
+    isolation: isolate;
+    overflow: hidden; 
+}

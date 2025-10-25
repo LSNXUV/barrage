@@ -1,0 +1,51 @@
+
+@keyframes move-to-left {
+    to {
+        transform: translateX(-100%);
+    }
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.container {
+    position: absolute;
+    width: fit-content;
+    cursor: pointer;
+    top: var(--top, 0);
+    height: var(--height, 24px);
+    transform: translateX(var(--distance, 100vw));
+    $animation: move-to-left var(--duration, 15s) var(--delay, 0ms) linear forwards var(--state, running);
+
+    &.start {
+        animation: $animation;
+        will-change: transform;
+    }
+
+    &.restock {
+        // 如果是补发的弹幕，添加淡入效果
+        animation: $animation, fade-in 0.5s ease-in forwards;
+    }
+
+    &:hover {
+        --state: paused;    // 暂停动画
+        z-index: 1;         // hover 时层级提升，防止后续弹幕覆盖
+
+        .content {
+            color: #fff;
+        }
+    }
+
+    .content {
+        font-size: 20px;
+        text-wrap: nowrap;
+        color: #e2e2e2;
+    }
+}
