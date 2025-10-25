@@ -1,16 +1,65 @@
-## Realtime Barrage (WebSocket)
+## 弹幕组件
 
-- Server endpoint: `GET /api/barrage` (Edge runtime, WebSocket upgrade)
-- Client hook: `useBarrageWS` in `src/hooks/useBarrageWS.ts`
-	- `connected`: boolean
-	- `messages`: BarrageData[]
-	- `sendBarrage(content: string)`: boolean
+该组件用于展示弹幕效果，支持自定义配置和动态数据更新。
 
-How it works:
+### 使用方法
 
-- When a client connects, it receives the latest backlog (up to 200 messages), then real-time messages.
-- Sending: clients send `{ type: 'send', data: { content } }`, the server assigns id/startTime and broadcasts `{ type: 'barrage', data }` to all.
+1. 引入组件
 
-Local dev:
+```tsx
+import Barrages from './components/BarrageArea/Barrages';
+```
 
-- Start dev server and open two tabs at `http://localhost:3000` to see barrage sync in real time.
+2. 使用组件
+
+```tsx
+<Barrages
+    data={data}
+    leave={handleLeave}
+    config={config}
+/>
+```
+
+### 组件属性
+
+- `data`: 弹幕数据数组，包含每条弹幕的内容、开始时间等信息。
+- `leave`: 弹幕离开时的回调函数。
+- `config`: 弹幕配置项，支持自定义速度、区域、行高等属性。
+
+```tsx
+const config = {
+    speed: Speed.Fast,
+    area: 100,
+    rowHeight: 24,
+    minGap: 32,
+    mode: Mode.Sparse,
+};
+```
+
+### 事件处理
+
+- `leave`: 当弹幕离开视口时触发，参数为弹幕的 ID。
+
+```tsx
+const handleLeave = (id: string) => {
+    console.log(`弹幕 ${id} 离开视口`);
+	// 需要从data中移除该弹幕
+    removeBarrageById(id);
+};
+```
+### 配置选项
+
+```tsx
+const config = {
+    speed: Speed.Fast,
+    area: 100,
+    rowHeight: 24,
+    minGap: 32,
+    mode: Mode.Sparse,
+};
+```
+- `speed`: 弹幕速度，支持 `Speed.Slow`、`Speed.Normal`、`Speed.Fast`。
+- `area`: 弹幕显示区域的百分比。
+- `rowHeight`: 每行弹幕的高度。
+- `minGap`: 弹幕之间的最小间隔。
+- `mode`: 弹幕分配模式，支持稀疏模式 `Mode.Sparse` 和 紧凑模式 `Mode.Compact`。
