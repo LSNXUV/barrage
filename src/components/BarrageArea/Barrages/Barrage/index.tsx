@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useRef, useState } from 'react'
 import styles from './index.module.scss'
-import { Speed } from '../../type'
+import { Speed } from '../types'
 import { classNames } from '@/util/classNames';
 import { AllocatedData, BarragesProps } from '..';
 
@@ -16,7 +16,7 @@ export type ItemRef = {
 export default memo(function Barrage({
   barrageRef,
   containerRef,
-  leave,
+  onLeave,
   data: { id, content, startTime, index },
   config: { speed: duration, rowHeight, minGap },
 }: {
@@ -24,7 +24,7 @@ export default memo(function Barrage({
   /** 容器ref */
   containerRef: React.RefObject<HTMLDivElement | null>,
   barrageRef: React.RefObject<Record<string, ItemRef>>,
-  leave?: BarragesProps['leave'],
+  onLeave?: BarragesProps['onLeave'],
   config: Required<Required<BarragesProps>['config']>,
 }) {
 
@@ -35,13 +35,12 @@ export default memo(function Barrage({
 
   useEffect(() => {
     if (!currentRef.current) return;
-    const now = Date.now();
     // 计算当前弹幕开始的延迟时间,可为负值
-    // let delay = startTime > now ? startTime - now : 0;
-    let delay = startTime - now;
-    if( delay < -duration * 1000 ) {
-      // 如果提前的延迟时间小于等于弹幕持续时间，说明弹幕早已结束了，直接移除
-      leave?.(id);
+    let delay = startTime - Date.now();
+    // 如果提前的延迟时间小于等于 弹幕持续时间 + 容错时间，说明弹幕很接近结束了，直接移除
+    if( delay <= -duration * 1000 + 3000 ) {
+      console.log('负延迟时间过大，直接移除弹幕：', delay, content);
+      onLeave?.(id);
       return;
     }
     /** 前一个弹幕的rect信息 */
@@ -61,8 +60,8 @@ export default memo(function Barrage({
       if (thisArrivalTime < frontArrivalTime) {
         delay += frontArrivalTime - thisArrivalTime;
       }
+      // 前面只是计算前一条弹幕离开容器时，最终不交错的延迟时间，但没考虑到，负值delay的最开始出现时是否交错
       if (delay < 0) {
-        // 前面只是计算前一条弹幕离开容器时，最终不交错的延迟时间，但没考虑到，负值delay的最开始出行时是否交错
         // 计算当前弹幕出现在容器右侧时，前一条弹幕的位置，判断是否交错，如果交错则需要再调整delay
         const startPosition = container.right - (-delay) * currentMsSpeed;
         /** 交错距离 */
@@ -79,9 +78,9 @@ export default memo(function Barrage({
     }
     setStart(true);
     setDelay(delay);
-  }, [startTime, id, duration, minGap, leave]);
+  }, [startTime, id, duration, minGap, onLeave]);
 
-  // 设置实例引用（避免每条弹幕额外测量高度）
+  // 设置实例引用
   useEffect(() => {
     if (!currentRef.current) return;
     barrageRef.current[id] = {
@@ -116,7 +115,7 @@ export default memo(function Barrage({
       }
       onAnimationEnd={(e) => {
         if (e.animationName.includes('move-to-left')) {
-          leave?.(id);
+          onLeave?.(id);
         }
       }}
     >

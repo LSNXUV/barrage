@@ -22,18 +22,16 @@ import Barrages from './components/BarrageArea/Barrages';
 
 ### 组件属性
 
-- `data`: 弹幕数据数组，包含每条弹幕的内容、开始时间等信息。
+- `data`: BarrageData，弹幕数据数组，包含每条弹幕的内容、开始时间等信息。
 - `leave`: 弹幕离开时的回调函数。
 - `config`: 弹幕配置项，支持自定义速度、区域、行高等属性。
 
 ```tsx
-const config = {
-    speed: Speed.Fast,
-    area: 100,
-    rowHeight: 24,
-    minGap: 32,
-    mode: Mode.Sparse,
-};
+interface BarrageData {
+	id: string;
+	content: string;
+	startTime: number;	// 弹幕开始时间，时间戳，单位毫秒
+}
 ```
 
 ### 事件处理
@@ -50,6 +48,7 @@ const handleLeave = (id: string) => {
 ### 配置选项
 
 ```tsx
+/** 默认配置 */
 const config = {
     speed: Speed.Fast,
     area: 100,
