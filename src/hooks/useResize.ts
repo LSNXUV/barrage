@@ -49,5 +49,5 @@ export const useResizer = <T extends HTMLElement | null>(
                 observer.disconnect();
             }
         };
-    }, []);
+    }, [handle]);
 }

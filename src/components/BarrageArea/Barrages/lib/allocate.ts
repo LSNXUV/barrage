@@ -1,7 +1,6 @@
 import { AllocatedData } from ".."
-import { BarrageData, Config } from "../types"
+import { AllocatedWay, BarrageData, Config } from "../types"
 import { ItemRef } from "../Barrage"
-import { shuffle } from "./shuffle";
 
 export interface AllocateResult {
   allocated: AllocatedData[];
@@ -30,6 +29,7 @@ export function allocate(
   const existingIdRecord = Object.create(null) as Record<BarrageData['id'], boolean>;
   /** 当前弹道对应的最后一条弹幕 */
   const users: (AllocatedData | undefined)[] = [];
+  /** 舍弃的弹幕 */
   const desertedItems: BarrageData[] = [];
 
   // 初始化现有弹幕状态
@@ -56,10 +56,11 @@ export function allocate(
     : Array.from({ length: toAdd.length }, (_, i) => i);  // 全部弹道空闲，直接分配
 
   // 最多遍历最大弹道数次；稀疏分配下，随机起始查找，使得分配更均匀；紧凑则是从头开始遍历
+  const rd =
+    // config.allocatedWay === AllocatedWay.Sparse ? Math.floor(Math.random() * maxLanes) :
+      0;
   for (
-    let rd =
-      // config.allocatedWay === AllocatedWay.Sparse ? Math.floor(Math.random() * maxLanes) :
-      0, index = rd;
+    let index = rd;
     index < maxLanes + rd;
     index++
   ) {
@@ -93,7 +94,9 @@ export function allocate(
   const reserved: boolean[] = [];
   const newAllocated = oldData.slice(); // 浅拷贝旧数据
 
-  // 若可分配数量少于待分配数量，说明弹幕显示数量已经逐渐开始受限，则优先分配更接近当前时间的弹幕
+  // 若可分配数量少于待分配数量，说明弹幕显示已经逐渐开始受限，弹道不足以支撑过多的弹幕。
+  // 则优先分配更接近当前时间的弹幕，由于优先分配时间更近的，可能就会逐渐导致一些弹幕始终得不到分配（也就超时了）。
+  // 因此直接舍弃这些超时的弹幕
   if (allocatedIndexes.length < toAdd.length) {
     if (toAdd.length > 1) {
       const now = Date.now();
