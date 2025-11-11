@@ -23,7 +23,7 @@ export default function Barrage() {
     const handleSend = useCallback(() => {
         const content = input.trim();
         if (!content) return;
-        const newBarrage: BarrageData = { id: Date.now().toString(), content, startTime: Date.now() };
+        const newBarrage: BarrageData = { id: Date.now().toString(), content, startTime: Date.now(), username: 'me' };
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ type: WsDataType.NEW_BARRAGE, payload: newBarrage }));
         }
@@ -45,7 +45,10 @@ export default function Barrage() {
 
         ws.addEventListener('message', (ev) => {
             try {
-                const msg = JSON.parse(ev.data);
+                const msg = JSON.parse(ev.data) as {
+                    type: WsDataType;
+                    payload: BarrageData;
+                };
                 if (msg.type === WsDataType.INITIAL && Array.isArray(msg.payload)) {
                     setData(msg.payload);
                 } else if (msg.type === WsDataType.NEW_BARRAGE && msg.payload) {

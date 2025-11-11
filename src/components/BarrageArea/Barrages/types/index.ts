@@ -1,6 +1,7 @@
 
 export type BarrageData = {
     id: string;
+    username?: string;
     content: string;
     startTime: number; // 时间戳
     delay?: number; // 预设弹幕延迟时间，单位秒
@@ -52,6 +53,11 @@ export type Config = {
     minGap: number,
     /** 弹幕分配方式 */
     allocatedWay: AllocatedWay,
+    /** 
+     * 但弹幕分配繁忙时，每隔多少帧更新一次
+     * @default 10
+     */
+    frameInterval: number,
     /**
      * 弹幕组件类型
      * 1. 在线弹幕：实时发送的弹幕，如直播间弹幕，需要弹幕参数startTime毫秒时间戳

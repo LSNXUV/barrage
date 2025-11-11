@@ -7,6 +7,7 @@ export const DEFAULT_CONFIG: Config = {
     rowHeight: 24,
     minGap: 50,
     allocatedWay: AllocatedWay.Sparse,
+    frameInterval: 10,
     type: Type.online,
 };
 

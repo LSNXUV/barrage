@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './index.module.scss'
 import { BarrageData, Config, Speed } from './types'
-import Barrage, { ItemRef } from './Barrage'
+import Barrage, { ItemRef } from './Barrage';
 import { useResizer } from './hooks/useResize';
 import { classNames } from './lib/classNames';
 import { allocate } from './lib/allocate';
@@ -40,7 +40,7 @@ export default function Barrages({
     setData,
     onLeave,
     onDeserted,
-    config: originConfig,
+    config: userConfig,
     pause = false,
     ...props
 }: BarragesProps) {
@@ -62,8 +62,8 @@ export default function Barrages({
     /** 统一配置 */
     const config = useMemo<Required<Required<BarragesProps>['config']>>(() => ({
         ...DEFAULT_CONFIG,
-        ...(originConfig || {}),
-    }), [originConfig]);
+        ...(userConfig || {}),
+    }), [userConfig]);
 
     /** 处理弹幕移动结束 */
     const handleLeave: BarragesProps['onLeave'] = useCallback((id) => {
@@ -109,13 +109,17 @@ export default function Barrages({
     // 分配弹道
     useEffect(() => {
         let rafId: number | null = null;
+        let frameCount = 0;
+
         const update = () => {
-            // 如果暂停，停止更新
-            if (pauseRef.current) {
-                rafId = null;
+            // 弹道繁忙时，每隔frameInterval帧尝试分配，快速查找最新弹道
+            if (++frameCount % config.frameInterval !== 0) {
+                rafId = requestAnimationFrame(update);
                 return;
             }
 
+            /** 本次是否有分配？ */
+            let isAllocated = false;
             let deserted: BarrageData[] | undefined;
             setAllocatedData(oldData => {
                 const result = allocate({
@@ -127,11 +131,18 @@ export default function Barrages({
                     config,
                 });
                 deserted = result.deserted;
+                isAllocated = oldData !== result.allocated;
                 return result.allocated;
             });
 
             if (deserted?.length) {
                 handleDeserted(deserted);
+            }
+            // 如果本次无分配，代表所有弹道都繁忙，启动循环帧更新
+            if (!isAllocated) {
+                rafId = requestAnimationFrame(update);
+            } else {
+                rafId = null;
             }
         }
 
