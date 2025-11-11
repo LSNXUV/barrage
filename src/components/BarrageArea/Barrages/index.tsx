@@ -3,8 +3,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styles from './index.module.scss'
 import { BarrageData, Config, Speed } from './types'
 import Barrage, { ItemRef } from './Barrage'
-import { useResizer } from '@/hooks/useResize';
-import { classNames } from '@/util/classNames';
+import { useResizer } from './hooks/useResize';
+import { classNames } from './lib/classNames';
 import { allocate } from './lib/allocate';
 import { DEFAULT_CONFIG } from './lib/constant';
 
@@ -26,6 +26,8 @@ export interface BarragesProps extends React.HTMLAttributes<HTMLDivElement> {
         minGap: 50,
      */
     config?: Partial<Config>,
+    /** 暂停播放弹幕 */
+    pause?: boolean,
 }
 
 export type AllocatedData = (BarrageData & {
@@ -38,18 +40,20 @@ export default function Barrages({
     setData,
     onLeave,
     onDeserted,
-    config: originConfig = {},
+    config: originConfig,
+    pause = false,
     ...props
 }: BarragesProps) {
 
     // 分配后的弹幕数据
     const [allocatedData, setAllocatedData] = useState<AllocatedData[]>([])
 
-    /** 实时data数据 */
-    const dataRef = useRef<BarrageData[]>(data);
+    /** 暂停状态 */
+    const pauseRef = useRef(pause);
 
     /** 容器ref */
     const containerRef = useRef<HTMLDivElement>(null);
+    const containerRectRef = useRef<DOMRect | null>(null);
     /** 弹幕实例引用, 可获取弹幕状态 */
     const barrageRef = useRef<Record<BarrageData['id'], ItemRef>>({})
     /** 最大弹道数（由容器高度与配置计算） */
@@ -58,7 +62,7 @@ export default function Barrages({
     /** 统一配置 */
     const config = useMemo<Required<Required<BarragesProps>['config']>>(() => ({
         ...DEFAULT_CONFIG,
-        ...originConfig,
+        ...(originConfig || {}),
     }), [originConfig]);
 
     /** 处理弹幕移动结束 */
@@ -87,6 +91,8 @@ export default function Barrages({
     useResizer<typeof containerRef.current>(
         containerRef,
         useCallback((rect) => {
+            // 保存rect对象
+            containerRectRef.current = rect;
             // 直接写入 CSS 变量，避免 setState 造成的额外渲染
             containerRef.current?.style.setProperty('--distance', `${rect.width}px`);
             // 计算最大弹道数
@@ -97,55 +103,63 @@ export default function Barrages({
     );
 
     useEffect(() => {
-        dataRef.current = data;
-    }, [data]);
+        pauseRef.current = pause;
+    }, [pause]);
 
     // 分配弹道
     useEffect(() => {
-        let frame: number | null = null;
+        let rafId: number | null = null;
         const update = () => {
-            frame = null;
-            let deserted: BarrageData[] = [];
+            // 如果暂停，停止更新
+            if (pauseRef.current) {
+                rafId = null;
+                return;
+            }
+
+            let deserted: BarrageData[] | undefined;
             setAllocatedData(oldData => {
-                const result = allocate(
+                const result = allocate({
                     oldData,
-                    dataRef.current,
-                    barrageRef.current,
-                    containerRef.current,
-                    maxLanesRef.current,
+                    newData: data,
+                    barrageRef: barrageRef.current,
+                    container: containerRectRef.current,
+                    maxLanes: maxLanesRef.current,
                     config,
-                );
+                });
                 deserted = result.deserted;
                 return result.allocated;
             });
-            if (deserted.length) {
+
+            if (deserted?.length) {
                 handleDeserted(deserted);
             }
         }
 
-        if (frame) cancelAnimationFrame(frame);
-        frame = requestAnimationFrame(update);
+        // 未暂停时，启动更新
+        if (!pauseRef.current) {
+            rafId = requestAnimationFrame(update);
+        }
 
         return () => {
-            if (frame) cancelAnimationFrame(frame);
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = null;
         }
-    }, [config, handleDeserted]);
+    }, [config, data, handleDeserted, pause]);
 
     return (
         <div
+            {...props}
             ref={containerRef}
-            style={{
-                ...(props.style || {}),
-            }}
             className={classNames(styles.barrageContainer, props.className)}
         >
             {allocatedData.map((item) => (
                 <Barrage
                     key={item.id}
                     data={item}
+                    pause={pause}
                     config={config}
                     barrageRef={barrageRef}
-                    containerRef={containerRef}
+                    containerRef={containerRectRef}
                     onLeave={handleLeave}
                 />
             ))}

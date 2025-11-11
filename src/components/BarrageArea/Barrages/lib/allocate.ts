@@ -1,10 +1,12 @@
 import { AllocatedData } from ".."
 import { AllocatedWay, BarrageData, Config } from "../types"
 import { ItemRef } from "../Barrage"
+import { hashString } from "./hash";
+import { MIN_DURATION } from "./constant";
 
 export interface AllocateResult {
   allocated: AllocatedData[];
-  deserted: BarrageData[];
+  deserted?: BarrageData[];
 }
 
 /**
@@ -17,20 +19,31 @@ export interface AllocateResult {
  * @param config 弹幕配置项
  * @returns 更新后的分配结果
  */
-export function allocate(
+export function allocate({
+  oldData,
+  newData,
+  barrageRef,
+  container,
+  maxLanes,
+  config
+}: {
+  /** 已分配的弹幕数据 */
   oldData: AllocatedData[],
+  /** 待分配的弹幕数据 */
   newData: BarrageData[],
+  /** 弹幕实例引用集合 */
   barrageRef: Record<BarrageData['id'], ItemRef>,
-  container: HTMLDivElement | null,
+  /** 弹幕容器节点 */
+  container: DOMRect | null,
+  /** 允许的最大弹道数量 */
   maxLanes: number,
+  /** 弹幕配置项 */
   config: Config,
-): AllocateResult {
+}): AllocateResult {
   /** 已存在的弹幕 ID */
   const existingIdRecord = Object.create(null) as Record<BarrageData['id'], boolean>;
   /** 当前弹道对应的最后一条弹幕 */
   const users: (AllocatedData | undefined)[] = [];
-  /** 舍弃的弹幕 */
-  const desertedItems: BarrageData[] = [];
 
   // 初始化现有弹幕状态
   for (let i = 0, len = oldData.length; i < len; i++) {
@@ -48,30 +61,35 @@ export function allocate(
     }
   }
 
-  if (!toAdd.length) return { allocated: oldData, deserted: desertedItems };
+  if (!toAdd.length) return { allocated: oldData };
 
   /** 分配的空闲弹道索引 */
-  const allocatedIndexes: number[] = users.length
-    ? []
-    : Array.from({ length: toAdd.length }, (_, i) => i);  // 全部弹道空闲，直接分配
+  const allocatedIndexes: number[] =
+    // 部分弹道已被分配，需要查找
+    users.length ? []
+      // 全部弹道空闲，直接分配
+      : Array.from({ length: Math.min(maxLanes, toAdd.length) }, (_, i) => i);
 
-  // 最多遍历最大弹道数次；稀疏分配下，随机起始查找，使得分配更均匀；紧凑则是从头开始遍历
-  const rd =
-    // config.allocatedWay === AllocatedWay.Sparse ? Math.floor(Math.random() * maxLanes) :
-      0;
+  // 稀疏分配下，随机起始查找，使得分配更均匀；紧凑则是从头开始遍历
+  const randomStart = (config.allocatedWay === AllocatedWay.Sparse && toAdd.length && maxLanes)
+    // 为了保持幂等性，不能使用 Math.random() 作为起始索引，而是基于待分配弹幕的稳定信息生成一个确定性偏移。
+    // 避免因为React Strict Mode（开发模式下可能会多次执行）闪烁或不一致。
+    ? hashString(toAdd.map(i => String(i.id)).join('|')) % maxLanes
+    : 0;
   for (
-    let index = rd;
-    index < maxLanes + rd;
+    let index = randomStart;
+    // 最多遍历最大弹道数次；
+    index < maxLanes + randomStart;
     index++
   ) {
-    const i = rd ? index % maxLanes : index;
+    const i = randomStart ? index % maxLanes : index;  // 准确的索引
     const user = users[i];  // 当前弹道的最后一条弹幕
     if (
       user &&
       barrageRef[user.id] &&
       !barrageRef[user.id]
         .isEnterContainer?.(
-          container?.getBoundingClientRect().right || Number.MAX_SAFE_INTEGER
+          container?.right || Number.MAX_SAFE_INTEGER
         )
     ) {
       // 前方弹幕未完全进入容器，则忙碌
@@ -87,31 +105,30 @@ export function allocate(
   // 无空闲弹道，直接返回旧数据，不渲染
   if (allocatedIndexes.length === 0 && maxLanes) {
     console.log('无可用弹道，本次未分配：', toAdd.length);
-    return { allocated: oldData, deserted: desertedItems };
+    return { allocated: oldData };
   }
 
-  // 分配新弹幕
+  /** 记录本次弹道分配情况 */
   const reserved: boolean[] = [];
-  const newAllocated = oldData.slice(); // 浅拷贝旧数据
+  const newAllocated = oldData.slice(); // 浅拷贝旧已分配数据
+  /** 舍弃的弹幕 */
+  const desertedItems: BarrageData[] = [];
 
   // 若可分配数量少于待分配数量，说明弹幕显示已经逐渐开始受限，弹道不足以支撑过多的弹幕。
-  // 则优先分配更接近当前时间的弹幕，由于优先分配时间更近的，可能就会逐渐导致一些弹幕始终得不到分配（也就超时了）。
-  // 因此直接舍弃这些超时的弹幕
+  // 则需要排序，然后优先分配更接近当前时间的弹幕，
+  // 由于优先分配时间更近的，时间一长起来，可能就会逐渐导致一些弹幕始终得不到分配（也就超时了）。
+  // 最后直接舍弃这些超时的弹幕
   if (allocatedIndexes.length < toAdd.length) {
     if (toAdd.length > 1) {
       const now = Date.now();
       toAdd.sort((a, b) => Math.abs(a.startTime - now) - Math.abs(b.startTime - now));
-      const desertedData: BarrageData[] = [];
       for (let idx = toAdd.length - 1; idx >= 0; idx--) {
         const item = toAdd[idx];
-        if (item.startTime - now <= -config.speed * 1000 + 3000) {
-          desertedData.push(item);
+        if (item.startTime - now <= -config.speed * 1000 + MIN_DURATION) {
+          desertedItems.push(item);
         } else {
           break;
         }
-      }
-      if (desertedData.length) {
-        desertedItems.push(...desertedData);
       }
     }
   }

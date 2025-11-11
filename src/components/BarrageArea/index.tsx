@@ -6,16 +6,13 @@ import Barrages, { BarragesProps } from './Barrages';
 import { WsDataType } from './type';
 
 export default function Barrage() {
-    const [data, setData] = useState<BarrageData[]>([
-        { id: '1', content: 'Hello World! This is a barrage message.', startTime: Date.now() + 1000 },
-        { id: '2', content: 'Another message appears!', startTime: Date.now() + 2000 },
-        { id: '3', content: 'React is awesome!', startTime: Date.now() + 3000 },
-    ]);
+    const [data, setData] = useState<BarrageData[]>([]);
     const wsRef = useRef<WebSocket | null>(null);
     const [input, setInput] = useState('');
+    const [pause, setPause] = useState(false);
 
     const onLeave: BarragesProps['onLeave'] = useCallback((id) => {
-        console.log('弹幕离开:', id);
+        // console.log('弹幕离开:', id);
     }, []);
 
     const onDeserted: BarragesProps['onDeserted'] = useCallback((desertedData) => {
@@ -50,20 +47,9 @@ export default function Barrage() {
             try {
                 const msg = JSON.parse(ev.data);
                 if (msg.type === WsDataType.INITIAL && Array.isArray(msg.payload)) {
-                    setData(prev => {
-                        // merge while avoiding duplicates
-                        const existIds = new Set(prev.map(p => p.id));
-                        const merged = [...prev];
-                        for (const item of msg.payload) {
-                            if (!existIds.has(item.id)) merged.push(item);
-                        }
-                        return merged;
-                    });
+                    setData(msg.payload);
                 } else if (msg.type === WsDataType.NEW_BARRAGE && msg.payload) {
-                    setData(prev => {
-                        if (prev.find(p => p.id === msg.payload.id)) return prev;
-                        return [...prev, msg.payload];
-                    });
+                    setData(d => [msg.payload]);
                 }
             } catch (e) {
                 console.warn('Invalid WS message', e);
@@ -73,7 +59,6 @@ export default function Barrage() {
         ws.addEventListener('close', () => {
             console.log('WebSocket closed');
             wsRef.current = null;
-            // simple reconnect after a delay
             setTimeout(() => {
                 if (!wsRef.current) {
                     const newWs = new WebSocket(url);
@@ -96,13 +81,14 @@ export default function Barrage() {
                 setData={setData}
                 onLeave={onLeave}
                 onDeserted={onDeserted}
+                pause={pause}
             />
             <div className={styles.inputContainer}>
                 <input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     type="text"
-                    placeholder="来发表你的想法吧..."
+                    placeholder="来发表你的想法吧...Enter发送"
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                             handleSend();
@@ -110,8 +96,8 @@ export default function Barrage() {
                     }}
                 />
                 <button onClick={() => {
-                    handleSend();
-                }}>发送</button>
+                    setPause(p => !p)
+                }}>暂停</button>
             </div>
         </div>
     )

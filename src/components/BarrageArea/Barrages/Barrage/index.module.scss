@@ -35,7 +35,7 @@
     }
 
     &:hover {
-        --state: paused;    // 暂停动画
+        --state: paused !important;    // 暂停动画
         z-index: 1;         // hover 时层级提升，防止后续弹幕覆盖
 
         .content {

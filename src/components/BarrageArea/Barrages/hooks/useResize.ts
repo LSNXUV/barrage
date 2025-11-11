@@ -1,4 +1,4 @@
-import { debounce } from "@/util/dt";
+import { debounce } from "@/components/BarrageArea/Barrages/lib/debounce";
 import { useEffect } from "react";
 
 export type useResizerHandle = (rect: DOMRect) => void
@@ -9,7 +9,7 @@ export type useResizerHandle = (rect: DOMRect) => void
  * @param handle 变化回调
  * @example
  * useResizer(containerRef, (rect) => {
- *    console.log('尺寸变化', rect.width, rect.height);
+ *    console.log('rect变化', rect.width, rect.height);
  * });
  */
 export const useResizer = <T extends HTMLElement | null>(
@@ -29,7 +29,7 @@ export const useResizer = <T extends HTMLElement | null>(
             observer = new ResizeObserver(entries => {
                 const entry = entries[0];
                 if (!entry) return;
-                handle(entry.contentRect);
+                handle(entry.target.getBoundingClientRect());
             });
             observer.observe(ref.current);
         } else {

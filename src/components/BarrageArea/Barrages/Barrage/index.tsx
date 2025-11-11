@@ -1,8 +1,8 @@
 import React, { memo, useEffect, useRef, useState } from 'react'
 import styles from './index.module.scss'
-import { Speed } from '../types'
-import { classNames } from '@/util/classNames';
+import { classNames } from '../lib/classNames';
 import { AllocatedData, BarragesProps } from '..';
+import { MIN_DURATION } from '../lib/constant';
 
 export type ItemRef = {
   /** 当前弹幕行的前一个弹幕元素 */
@@ -18,27 +18,29 @@ export default memo(function Barrage({
   containerRef,
   onLeave,
   data: { id, content, startTime, index },
+  pause = false,
   config: { speed: duration, rowHeight, minGap },
 }: {
   data: AllocatedData,
-  /** 容器ref */
-  containerRef: React.RefObject<HTMLDivElement | null>,
+  /** 容器rect */
+  containerRef: React.RefObject<DOMRect | null>,
   barrageRef: React.RefObject<Record<string, ItemRef>>,
   onLeave?: BarragesProps['onLeave'],
+  pause?: boolean,
   config: Required<Required<BarragesProps>['config']>,
 }) {
 
   const [start, setStart] = useState(false);  // 开始信号
   const [delay, setDelay] = useState(0);
 
-  const currentRef = useRef<HTMLDivElement>(null);
+  const currentRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!currentRef.current) return;
     // 计算当前弹幕开始的延迟时间,可为负值
     let delay = startTime - Date.now();
-    // 如果提前的延迟时间小于等于 弹幕持续时间 + 容错时间，说明弹幕很接近结束了，直接移除
-    if( delay <= -duration * 1000 + 3000 ) {
+    // 如果 负延迟 + 弹幕持续时间 < 最小展示时间，说明弹幕很接近结束了，直接移除
+    if (delay + duration * 1000 < MIN_DURATION) {
       console.log('负延迟时间过大，直接移除弹幕：', delay, content);
       onLeave?.(id);
       return;
@@ -47,7 +49,7 @@ export default memo(function Barrage({
     const frontRect = barrageRef.current[id]?.frontElement?.getBoundingClientRect();
     // 调整延迟，确保不会与前一个弹幕重叠
     if (frontRect) {
-      const container = containerRef.current?.getBoundingClientRect();
+      const container = containerRef.current;
       if (!container) return;
       // 前一个弹幕离开容器时间
       const frontArrivalTime = (frontRect.right - container.left) / (frontRect.width + container.width) * duration * 1000;
@@ -73,7 +75,7 @@ export default memo(function Barrage({
       }
     }
     // 比较小的负值delay，视为无延迟立即开始
-    if (delay < 0 && delay > -500) {
+    if (delay < 0 && delay > -1000) {
       delay = 0;
     }
     setStart(true);
@@ -102,6 +104,11 @@ export default memo(function Barrage({
     currentRef.current.style.setProperty('--height', `${rowHeight}px`);
     currentRef.current.style.top = `${index * rowHeight}px`;
   }, [duration, delay, rowHeight, index]);
+
+  useEffect(() => {
+    if (!currentRef.current) return;
+    currentRef.current.style.setProperty('--state', pause ? 'paused' : 'running');
+  }, [pause]);
 
   return (
     <div
