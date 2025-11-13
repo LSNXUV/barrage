@@ -5,7 +5,13 @@ import { hashString } from "./hash";
 import { MIN_DURATION } from "./constant";
 
 export interface AllocateResult {
+  /** 已分配弹幕数据 */
   allocated: AllocatedData[];
+  /** 因弹道空闲不够，部分未分配的弹幕 */
+  unAllocated?: BarrageData[];
+  /** 是否全部弹道繁忙？ */
+  isAllBusy?: boolean;
+  /** 被舍弃的弹幕 */
   deserted?: BarrageData[];
 }
 
@@ -29,7 +35,7 @@ export function allocate({
 }: {
   /** 已分配的弹幕数据 */
   oldData: AllocatedData[],
-  /** 待分配的弹幕数据 */
+  /** 待分配的弹幕数据，自动id去重 */
   newData: BarrageData[],
   /** 弹幕实例引用集合 */
   barrageRef: Record<BarrageData['id'], ItemRef>,
@@ -53,15 +59,20 @@ export function allocate({
   }
 
   /** 新增的弹幕 */
-  let toAdd: BarrageData[] = [];
+  const toAdd: BarrageData[] = [];
+  const toAddExistId = Object.create(null) as Record<BarrageData['id'], boolean>;
   for (let i = 0, len = newData.length; i < len; i++) {
     const item = newData[i];
-    if (!existingIdRecord[item.id]) {
+    if (!existingIdRecord[item.id] && !toAddExistId[item.id]) {
       toAdd.push(item);
+      toAddExistId[item.id] = true;
     }
   }
 
-  if (!toAdd.length) return { allocated: oldData };
+  if (!toAdd.length) {
+    // console.log('无新增弹幕');
+    return { allocated: oldData }
+  };
 
   /** 分配的空闲弹道索引 */
   const allocatedIndexes: number[] =
@@ -97,15 +108,16 @@ export function allocate({
       // 前方弹幕已完全进入容器，则不忙碌
       allocatedIndexes.push(i);
       if (allocatedIndexes.length === toAdd.length) {
-        break; // 分配完毕，退出
+        // 分配完毕，退出
+        break; 
       }
     }
   }
 
   // 无空闲弹道，直接返回旧数据，不渲染
-  if (allocatedIndexes.length === 0 && maxLanes) {
-    console.log('无可用弹道，本次未分配：', toAdd.length);
-    return { allocated: oldData };
+  if (allocatedIndexes.length === 0) {
+    // console.log('无可用弹道，本次未分配：', toAdd.length);
+    return { allocated: oldData, isAllBusy: true };
   }
 
   /** 记录本次弹道分配情况 */
@@ -126,6 +138,7 @@ export function allocate({
         const item = toAdd[idx];
         if (item.startTime - now <= -config.speed * 1000 + MIN_DURATION) {
           desertedItems.push(item);
+          toAdd.pop();
         } else {
           break;
         }
@@ -137,10 +150,11 @@ export function allocate({
 
     // 已超过可分配的数量，无可用弹道，停止分配
     if (i >= allocatedIndexes.length) {
-      console.log('可用弹道不够，剩余未分配：', len - i);
+      // console.log('可用弹道不够，剩余未分配：', len - i);
       // 若一条都未分配，返回旧数据；否则返回已分配结果
       return {
-        allocated: i === 0 ? oldData : newAllocated,
+        allocated: newAllocated,
+        unAllocated: toAdd.slice(i),
         deserted: desertedItems,
       };
     };
@@ -161,7 +175,6 @@ export function allocate({
     const allocatedItem: AllocatedData = { ...item, index };
     newAllocated.push(allocatedItem);
     reserved[index] = true;
-    existingIdRecord[item.id] = true;
     users[index] = allocatedItem;
     index++;
   }

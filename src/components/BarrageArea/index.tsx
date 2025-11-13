@@ -52,6 +52,7 @@ export default function Barrage() {
                 if (msg.type === WsDataType.INITIAL && Array.isArray(msg.payload)) {
                     setData(msg.payload);
                 } else if (msg.type === WsDataType.NEW_BARRAGE && msg.payload) {
+                    // setData(d => [...d, msg.payload]);
                     setData(d => [msg.payload]);
                 }
             } catch (e) {

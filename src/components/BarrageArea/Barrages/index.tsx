@@ -9,7 +9,11 @@ import { allocate } from './lib/allocate';
 import { DEFAULT_CONFIG } from './lib/constant';
 
 export interface BarragesProps extends React.HTMLAttributes<HTMLDivElement> {
-    /** 弹幕数据数组 */
+    /** 
+     * 弹幕数据数组
+     * 1. 可只传入新增的弹幕
+     * 2. 也可以传入全部弹幕（会自动去重），内部会通过setData移除掉已经展示完的弹幕
+    */
     data: BarrageData[],
     /** 用于更新弹幕数据，一般用于移除已离开的弹幕 */
     setData: React.Dispatch<React.SetStateAction<BarrageData[]>>,
@@ -17,14 +21,7 @@ export interface BarragesProps extends React.HTMLAttributes<HTMLDivElement> {
     onDeserted: (desertedData: BarrageData[]) => void,
     /** 弹幕运动结束，离开时会调用 */
     onLeave: (id: BarrageData['id']) => void,
-    /**
-     * 弹幕配置项
-     * @default 默认值
-        speed: Speed.Normal,
-        area: 50,
-        rowHeight: 24,
-        minGap: 50,
-     */
+    /** 弹幕配置项 */
     config?: Partial<Config>,
     /** 暂停播放弹幕 */
     pause?: boolean,
@@ -46,13 +43,22 @@ export default function Barrages({
 }: BarragesProps) {
 
     // 分配后的弹幕数据
-    const [allocatedData, setAllocatedData] = useState<AllocatedData[]>([])
+    const [allocatedData, setAllocatedData] = useState<{
+        /** 已分配弹道的弹幕 */
+        data: AllocatedData[];
+        /** 因弹道繁忙而尚未分配/等待分配的弹幕 */
+        unAllocatedData: BarrageData[];
+    }>({
+        data: [],
+        unAllocatedData: [],
+    })
 
     /** 暂停状态 */
     const pauseRef = useRef(pause);
 
     /** 容器ref */
     const containerRef = useRef<HTMLDivElement>(null);
+    /** 容器最新rect对象 */
     const containerRectRef = useRef<DOMRect | null>(null);
     /** 弹幕实例引用, 可获取弹幕状态 */
     const barrageRef = useRef<Record<BarrageData['id'], ItemRef>>({})
@@ -71,7 +77,10 @@ export default function Barrages({
         delete barrageRef.current[id];
         setData(prevData => prevData.filter(item => item.id !== id));
         setAllocatedData(acData => {
-            return acData.filter(i => i.id !== id);
+            return {
+                ...acData,
+                data: acData.data.filter(i => i.id !== id),
+            }
         });
     }, [onLeave]);
 
@@ -97,8 +106,7 @@ export default function Barrages({
             containerRef.current?.style.setProperty('--distance', `${rect.width}px`);
             // 计算最大弹道数
             const maxHeight = rect.height * (config.area / 100);
-            const lanes = Math.max(1, Math.floor(maxHeight / (config.rowHeight || Number.MAX_SAFE_INTEGER)));
-            maxLanesRef.current = lanes;
+            maxLanesRef.current = Math.max(1, Math.floor(maxHeight / (config.rowHeight || Number.MAX_SAFE_INTEGER)));
         }, [config.area, config.rowHeight])
     );
 
@@ -110,37 +118,55 @@ export default function Barrages({
     useEffect(() => {
         let rafId: number | null = null;
         let frameCount = 0;
-
-        const update = () => {
+        const update = (loop: boolean = false) => {
             // 弹道繁忙时，每隔frameInterval帧尝试分配，快速查找最新弹道
-            if (++frameCount % config.frameInterval !== 0) {
-                rafId = requestAnimationFrame(update);
+            if (loop && ++frameCount % config.frameInterval !== 0) {
+                rafId = requestAnimationFrame(() => update(true));
                 return;
             }
 
-            /** 本次是否有分配？ */
-            let isAllocated = false;
+            /** 此时是否所有弹道繁忙？ */
+            let isAllBusy = false;
             let deserted: BarrageData[] | undefined;
-            setAllocatedData(oldData => {
+            setAllocatedData((prev) => {
+                // 合并未分配数据，allocate函数内部已自动去重
+                prev.unAllocatedData.push(...data);
                 const result = allocate({
-                    oldData,
-                    newData: data,
+                    config,
+                    oldData: prev.data,
+                    newData: prev.unAllocatedData,
                     barrageRef: barrageRef.current,
                     container: containerRectRef.current,
                     maxLanes: maxLanesRef.current,
-                    config,
                 });
                 deserted = result.deserted;
-                isAllocated = oldData !== result.allocated;
-                return result.allocated;
+                isAllBusy = !!result.isAllBusy;
+                // 引用不同，代表有弹幕被分配
+                if (result.allocated !== prev.data) {
+                    if (result.unAllocated?.length) {
+                        // 因为空闲不够，有部分未分配数据
+                        prev.unAllocatedData = result.unAllocated;
+                    } else {
+                        // 全部都已分配，清空unAllocatedData
+                        prev.unAllocatedData.length = 0;
+                    }
+                    return {
+                        data: result.allocated,
+                        unAllocatedData: prev.unAllocatedData,
+                    };
+                } else {
+                    // 一条都没分配，则全部合并到newUnAllocatedData
+                    return prev;
+                }
             });
 
             if (deserted?.length) {
                 handleDeserted(deserted);
             }
-            // 如果本次无分配，代表所有弹道都繁忙，启动循环帧更新
-            if (!isAllocated) {
-                rafId = requestAnimationFrame(update);
+
+            // 如果所有弹道都繁忙，启动循环帧更新
+            if (isAllBusy) {
+                rafId = requestAnimationFrame(() => update(true));
             } else {
                 rafId = null;
             }
@@ -148,14 +174,18 @@ export default function Barrages({
 
         // 未暂停时，启动更新
         if (!pauseRef.current) {
-            rafId = requestAnimationFrame(update);
+            rafId = requestAnimationFrame(() => update());
         }
 
         return () => {
             if (rafId) cancelAnimationFrame(rafId);
             rafId = null;
         }
-    }, [config, data, handleDeserted, pause]);
+    }, [
+        config, data, handleDeserted,
+        // pause变化时，自动取消帧操作，释放内存
+        pause
+    ]);
 
     return (
         <div
@@ -163,7 +193,7 @@ export default function Barrages({
             ref={containerRef}
             className={classNames(styles.barrageContainer, props.className)}
         >
-            {allocatedData.map((item) => (
+            {allocatedData.data.map((item) => (
                 <Barrage
                     key={item.id}
                     data={item}

@@ -54,7 +54,7 @@ export type Config = {
     /** 弹幕分配方式 */
     allocatedWay: AllocatedWay,
     /** 
-     * 但弹幕分配繁忙时，每隔多少帧更新一次
+     * 当弹幕分配繁忙时，每隔多少帧更新一次
      * @default 10
      */
     frameInterval: number,
