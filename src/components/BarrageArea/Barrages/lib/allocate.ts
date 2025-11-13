@@ -3,6 +3,7 @@ import { AllocatedWay, BarrageData, Config } from "../types"
 import { ItemRef } from "../Barrage"
 import { hashString } from "./hash";
 import { MIN_DURATION } from "./constant";
+import { shuffle } from "./shuffle";
 
 export interface AllocateResult {
   /** 已分配弹幕数据 */
@@ -60,6 +61,7 @@ export function allocate({
 
   /** 新增的弹幕 */
   const toAdd: BarrageData[] = [];
+  /** 保存id方便去重 */
   const toAddExistId = Object.create(null) as Record<BarrageData['id'], boolean>;
   for (let i = 0, len = newData.length; i < len; i++) {
     const item = newData[i];
@@ -71,16 +73,19 @@ export function allocate({
 
   if (!toAdd.length) {
     // console.log('无新增弹幕');
-    return { allocated: oldData }
+    return { allocated: oldData };
   };
 
   /** 分配的空闲弹道索引 */
   const allocatedIndexes: number[] =
-    // 部分弹道已被分配，需要查找
-    users.length ? []
+    users.length !== 0
+      ? []  // 部分弹道已被分配，需要重新查找
       // 全部弹道空闲，直接分配
       : Array.from({ length: Math.min(maxLanes, toAdd.length) }, (_, i) => i);
-
+  if (config.allocatedWay === AllocatedWay.Sparse && allocatedIndexes.length > 1) {
+    // 稀疏分配下，随机打乱弹道顺序
+    shuffle(allocatedIndexes);  
+  };
   // 稀疏分配下，随机起始查找，使得分配更均匀；紧凑则是从头开始遍历
   const randomStart = (config.allocatedWay === AllocatedWay.Sparse && toAdd.length && maxLanes)
     // 为了保持幂等性，不能使用 Math.random() 作为起始索引，而是基于待分配弹幕的稳定信息生成一个确定性偏移。
@@ -109,7 +114,7 @@ export function allocate({
       allocatedIndexes.push(i);
       if (allocatedIndexes.length === toAdd.length) {
         // 分配完毕，退出
-        break; 
+        break;
       }
     }
   }
