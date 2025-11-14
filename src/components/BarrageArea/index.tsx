@@ -38,7 +38,6 @@ export default function Barrage() {
     useEffect(() => {
         // 连接 WebSocket 服务器
         const url = window.location.hostname === 'localhost' ? DOMAIN_LOCAL : DOMAIN_VERCEL
-        if (!url) return;
         const ws = new WebSocket(url);
         wsRef.current = ws;
 
