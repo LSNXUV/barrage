@@ -16,10 +16,11 @@ export type ItemRef = {
 export default memo(function Barrage({
   barrageRef,
   containerRef,
-  onLeave,
-  data: { id, content, startTime, index },
+  userName: currentUserName,
+  data: { id, content, startTime, index, userName },
   pause = false,
   config: { speed: duration, rowHeight, minGap },
+  onLeave,
 }: {
   data: AllocatedData,
   /** 容器rect */
@@ -28,6 +29,8 @@ export default memo(function Barrage({
   onLeave?: BarragesProps['onLeave'],
   pause?: boolean,
   config: Required<Required<BarragesProps>['config']>,
+  /** 当前用户名称 */
+  userName: string,
 }) {
 
   const [start, setStart] = useState(false);  // 开始信号
@@ -118,6 +121,7 @@ export default memo(function Barrage({
           styles.container,
           start && styles.start,
           delay < 0 && styles.restock,
+          currentUserName === userName && styles.withUser
         )
       }
       onAnimationEnd={(e) => {

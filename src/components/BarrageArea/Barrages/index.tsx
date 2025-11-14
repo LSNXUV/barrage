@@ -15,16 +15,17 @@ export interface BarragesProps extends React.HTMLAttributes<HTMLDivElement> {
      * 2. 也可以传入全部弹幕（会自动去重），内部会通过setData移除掉已经展示完的弹幕
     */
     data: BarrageData[],
+    /** 弹幕配置项 */
+    config?: Partial<Config>,
+    userName: string,
+    /** 暂停播放弹幕 */
+    pause?: boolean,
     /** 用于更新弹幕数据，一般用于移除已离开的弹幕 */
     setData: React.Dispatch<React.SetStateAction<BarrageData[]>>,
     /** 当弹幕数量过多，部分弹幕会被舍弃，则调用该函数，请在该函数中处理舍弃的弹幕，一般是从data中移除 */
     onDeserted: (desertedData: BarrageData[]) => void,
     /** 弹幕运动结束，离开时会调用 */
     onLeave: (id: BarrageData['id']) => void,
-    /** 弹幕配置项 */
-    config?: Partial<Config>,
-    /** 暂停播放弹幕 */
-    pause?: boolean,
 }
 
 export type AllocatedData = (BarrageData & {
@@ -34,11 +35,12 @@ export type AllocatedData = (BarrageData & {
 
 export default function Barrages({
     data,
+    userName,
+    config: userConfig,
+    pause = false,
     setData,
     onLeave,
     onDeserted,
-    config: userConfig,
-    pause = false,
     ...props
 }: BarragesProps) {
 
@@ -199,6 +201,7 @@ export default function Barrages({
                     data={item}
                     pause={pause}
                     config={config}
+                    userName={userName}
                     barrageRef={barrageRef}
                     containerRef={containerRectRef}
                     onLeave={handleLeave}

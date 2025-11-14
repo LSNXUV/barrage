@@ -1,10 +1,10 @@
 import { BarrageData } from "./Barrages/types";
 
 export enum WsDataType {
-    INITIAL = 'initial',
-    NEW_BARRAGE = 'new_barrage',
-    WELCOME = 'welcome',
-    PING = 'ping',
+    INITIAL = 'INITIAL',
+    NEW_BARRAGE = 'NEW_BARRAGE',
+    WELCOME = 'WELCOME',
+    PING = 'PING',
 }
 
 export type WsData = {

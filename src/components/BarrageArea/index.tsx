@@ -5,6 +5,8 @@ import { BarrageData } from './Barrages/types'
 import Barrages, { BarragesProps } from './Barrages';
 import { WsDataType } from './type';
 
+const randomUserName = Math.random().toString(36).slice(-6);
+
 export default function Barrage() {
     const [data, setData] = useState<BarrageData[]>([]);
     const wsRef = useRef<WebSocket | null>(null);
@@ -23,7 +25,7 @@ export default function Barrage() {
     const handleSend = useCallback(() => {
         const content = input.trim();
         if (!content) return;
-        const newBarrage: BarrageData = { id: Date.now().toString(), content, startTime: Date.now(), username: 'me' };
+        const newBarrage: BarrageData = { id: Date.now().toString(), content, startTime: Date.now(), userName: randomUserName };
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ type: WsDataType.NEW_BARRAGE, payload: newBarrage }));
         }
@@ -54,6 +56,8 @@ export default function Barrage() {
                 } else if (msg.type === WsDataType.NEW_BARRAGE && msg.payload) {
                     // setData(d => [...d, msg.payload]);
                     setData(d => [msg.payload]);
+                } else {
+                    console.log('unknown msg type', msg.type);
                 }
             } catch (e) {
                 console.warn('Invalid WS message', e);
@@ -82,6 +86,7 @@ export default function Barrage() {
             <Barrages
                 className={styles.barrageContainer}
                 data={data}
+                userName={randomUserName}
                 setData={setData}
                 onLeave={onLeave}
                 onDeserted={onDeserted}
@@ -101,7 +106,7 @@ export default function Barrage() {
                 />
                 <button onClick={() => {
                     setPause(p => !p)
-                }}>暂停</button>
+                }}>{pause ? '继续' : '暂停'}</button>
             </div>
         </div>
     )

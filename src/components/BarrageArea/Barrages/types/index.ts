@@ -1,7 +1,7 @@
 
 export type BarrageData = {
     id: string;
-    username?: string;
+    userName?: string;
     content: string;
     startTime: number; // 时间戳
     delay?: number; // 预设弹幕延迟时间，单位秒

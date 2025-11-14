@@ -4,7 +4,7 @@ import { AllocatedWay, Config, Speed, Type } from "../types";
 export const DEFAULT_CONFIG: Config = {
     speed: Speed.Normal,
     area: 50,
-    rowHeight: 24,
+    rowHeight: 26,
     minGap: 50,
     allocatedWay: AllocatedWay.Sparse,
     frameInterval: 10,
