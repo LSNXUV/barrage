@@ -3,13 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"next dev --turbopack\" \"ts-node-dev --respawn --transpile-only server/index.ts\"",
-    "dev:f": "next dev --turbopack",
-    "dev:b": "ts-node-dev --respawn --transpile-only server/index.ts",
-    "build": "concurrently \"next build --turbopack\" \"tsc --project server/tsconfig.json\"",
-    "start": "concurrently \"next start\" \"node server/dist/index.js\"",
-    "start:f": "next start",
-    "start:b": "node server/dist/index.js",
+    "dev": "next dev --turbopack",
+    "build": "next build --turbopack",
+    "start": "next start",
     "lint": "biome check",
     "format": "biome format --write"
   },
@@ -26,10 +22,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "sass": "^1.93.2",
-    "typescript": "^5",
-    "ts-node-dev": "^2.0.0",
-    "concurrently": "^8.2.0",
-    "@types/express": "^4.17.21",
-    "@types/ws": "^8.5.3"
+    "typescript": "^5"
   }
 }
