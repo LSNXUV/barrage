@@ -4,6 +4,7 @@ import styles from './index.module.scss'
 import { BarrageData } from './Barrages/types'
 import Barrages, { BarragesProps } from './Barrages';
 import { WsDataType } from './type';
+import { DOMAIN_LOCAL, DOMAIN_VERCEL, randomBarrages } from '@/constant';
 
 const randomUserName = Math.random().toString(36).slice(-6);
 
@@ -28,15 +29,16 @@ export default function Barrage() {
         const newBarrage: BarrageData = { id: Date.now().toString(), content, startTime: Date.now(), userName: randomUserName };
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({ type: WsDataType.NEW_BARRAGE, payload: newBarrage }));
+        } else {
+            setData(d => [...d, newBarrage]);
         }
         setInput('');
     }, [input]);
 
     useEffect(() => {
         // 连接 WebSocket 服务器
-        const url = window.location.hostname === 'localhost'
-            ? 'ws://localhost:7701/ws/barrage'
-            : `${window.location.protocol.replace('http', 'ws')}//${window.location.host}/ws/barrage`;
+        const url = window.location.hostname === 'localhost' ? DOMAIN_LOCAL : DOMAIN_VERCEL
+        if (!url) return;
         const ws = new WebSocket(url);
         wsRef.current = ws;
 
@@ -57,7 +59,7 @@ export default function Barrage() {
                     // setData(d => [...d, msg.payload]);
                     setData(d => [msg.payload]);
                 } else {
-                    console.log('unknown msg type', msg.type);
+                    console.log('other msg type', msg.type);
                 }
             } catch (e) {
                 console.warn('Invalid WS message', e);
@@ -75,9 +77,27 @@ export default function Barrage() {
             }, 2000);
         });
 
+        let intervalFast: NodeJS.Timeout;
+        ws.addEventListener('error', (err) => {
+            console.error('WebSocket 不可用，改用local:', err);
+            const sendRandom = () => {
+                const id = Date.now().toString();
+                // const content = `${new Date().toLocaleTimeString()} 服务消息 ${new Date().toLocaleDateString()} ${Array(Math.floor(Math.random() * 6) + 1).fill('哈').join('')}`;
+                const content = randomBarrages[Math.floor(Math.random() * randomBarrages.length)];
+                setData([{ id, content, startTime: Date.now() + Math.floor(Math.random() * 2000 - 1000) }]);
+            }
+
+            // 测试随机弹幕，前5秒每200ms发送一次，之后每1秒发送一次
+            intervalFast = setInterval(
+                sendRandom,
+                200
+            );
+        });
+
         return () => {
             ws.close();
             wsRef.current = null;
+            clearInterval(intervalFast);
         };
     }, []);
 
